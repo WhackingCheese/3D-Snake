@@ -1,0 +1,22 @@
+:root {
+    background-color: rgb(38, 38, 38);
+    color: white;
+    font-family: 'Rubik', sans-serif;
+}
+
+body {
+    display: flex;
+}
+
+.canvas {
+    border: 1px solid white;
+}
+
+.points {
+    margin-left: 15px;
+    position: absolute;
+    display: flex;
+    flex-direction: row;
+    font-size: 12px;
+    font-weight: 300;
+}
