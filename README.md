@@ -1,2 +1,2 @@
 # 3D-Snake
-Tölvugrafík - TÖL203M (2020) - Verkefni 3
+TÖL203M (2020) - Tölvugrafík - Verkefni 2
