@@ -1,7 +1,7 @@
 :root {
     background-color: rgb(38, 38, 38);
     color: white;
-    font-family: 'Rubik', sans-serif;
+    font-family: Rubik, sans-serif;
 }
 
 body {
@@ -12,11 +12,6 @@ body {
     border: 1px solid white;
 }
 
-.points {
-    margin-left: 15px;
-    position: absolute;
-    display: flex;
-    flex-direction: row;
-    font-size: 12px;
-    font-weight: 300;
+.variables {
+    margin: 5px;
 }

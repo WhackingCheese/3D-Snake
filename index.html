@@ -3,8 +3,9 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Frogger</title>
+        <title>3D Snake</title>
         <link rel="stylesheet" href="index.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Rubik:400&display=swap&subset=latin-ext">
         <script type="text/javascript" src="common/webgl-utils.js"></script>
         <script type="text/javascript" src="common/initShaders.js"></script>
         <script type="text/javascript" src="common/MV.js"></script>
@@ -26,12 +27,55 @@
         </script>
     </head>
     <body>
-        <div class="points">
-            <h1 >Points:</h1>
-            <h1 id="points">0</h1>
+        <div>
+            <canvas class="canvas" id="gl-canvas" width="768" height="768">
+                Oops... Your browser doesn't support the HTML5 canvas element
+            </canvas>
         </div>
-        <canvas class="canvas" id="gl-canvas" width="768" height="768">
-            Oops... Your browser doesn't support the HTML5 canvas element
-        </canvas>
+        <div class="variables">
+            <div class="grid">
+                <h1>Grid</h1>
+                <input type="range", id="grid_x" class="slider" min="5" max="200", value="25">
+                <label for ="grid_x" id="grid_x_text">Grid Size x-Axis : 25</label><br>
+                <input type="range", id="grid_y" class="slider" min="5" max="200", value="25">
+                <label for ="grid_y" id="grid_y_text">Grid Size y-Axis : 25</label><br>
+                <input type="range", id="grid_z" class="slider" min="5" max="200", value="25">
+                <label for ="grid_z" id="grid_z_text">Grid Size z-Axis : 25</label><br>
+            </div>
+            <div class="projection">
+                <h1>Projection</h1>
+                <input type="range" id="fovy_elem" class="slider" min="1" max="160" value="90">
+                <label for="fovy_elem" id="fovy_elem_text">FOV : 90</label><br>
+                <input type="range" id="zNear_elem" class="slider" min="1" max="300" value="1">
+                <label for="zNear" id="zNear_elem_text">zNear : 0.01</label><br>
+                <input type="range" id="zFar_elem" class="slider" min="1" max="300" value="200">
+                <label for="zFar" id="zFar_elem_text">zFar : 2</label><br>
+            </div>
+            <div class="snake">
+                <h1>Snake</h1>
+                <input type="button" id="randomize_snake" class="button">
+                <label for="randomize_snake">Randomize Values</label><br>
+                <input type="range" id="snake_speed" class="slider" min="1" max="20" value="5">
+                <label for="snake_speed" id="snake_speed_text">Speed : 1/5</label><br>
+                <input type="range" id="initial_length" class="slider" min="1" max="100" value="5">
+                <label for="initial_length" id="initial_length_text">Initial Length : 5</label><br>
+                <input type="range" id="growth_rate" class="slider" min="1" max="100" value="50">
+                <label for="growth_rate" id="growth_rate_text">Grow Every : 50</label><br>
+                <p>Distance Travelled Prior To Turning :</p>
+                <input type="range" id="distance_turn_x" class="slider" min="1" max="25" value="10">
+                <label for="distance_turn_x" id="distance_turn_x_text">x-Axis : 10</label><br>
+                <input type="range" id="distance_turn_y" class="slider" min="1" max="25" value="10">
+                <label for="distance_turn_y" id="distance_turn_y_text">y-Axis : 10</label><br>
+                <input type="range" id="distance_turn_z" class="slider" min="1" max="25" value="10">
+                <label for="distance_turn_z" id="distance_turn_z_text">z-Axis : 10</label><br>
+            </div>
+            <div class="origin">
+                <h1>Origin</h1>
+                <input type="checkbox" id="origin_absolute" class="checkbox">
+                <label for="origin_absolute">Draw Absolute Origin</label><br>
+                <input type="checkbox" id="origin_relative" class="checkbox">
+                <label for="origin_relative">Draw Relative Origin</label><br>
+            </div>
+        </div>
     </body>
 </html>

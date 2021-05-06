@@ -1,30 +1,43 @@
+// Setup
 var gl;
-var canvas;
 var program;
 var vPosition;
 var colorLoc;
 var proLoc;
 var mvLoc;
+var fovy = 90.0;
+var zNear = 0.01;
+var zFar = 10.0;
 
-var mv;
-var spinX = -50;
-var spinY = 0;
-var zDist = -5;
-var movement;
-var grid_size = 13;
+// Listeners
+var canvas;
+var spinX = -30;
+var spinY = 50;
+var zDist = -1.5;
+var movement = false;
 
+// Grid Sizes
+var cellCount = {
+    x : 50,
+    y : 50,
+    z : 50
+}
+var max = Math.max(cellCount.x, cellCount.y, cellCount.z);
+var gridSize = {
+    x : cellCount.x / max,
+    y : cellCount.y / max,
+    z : cellCount.z / max,
+    max: max
+}
+var cellSize = gridSize.x / cellCount.x;
+
+// Custom Objects
+var wireframe;
 var origin;
-var grid;
-var worldmap;
-var tree;
-var cars;
-var turtles;
-var logs;
-var frog;
-var points = 0;
-var pointsElem;
+var snake;
 
 window.onload = function main() {
+    // Setup
     gl = WebGLUtils.setupWebGL(canvas);
     if (!gl) {alert("WebGL is not available.");}
     gl.viewport(0, 0, canvas.width, canvas.height);
@@ -38,63 +51,165 @@ window.onload = function main() {
     colorLoc = gl.getUniformLocation(program, "wireColor");
     proLoc = gl.getUniformLocation(program, "projection");
     mvLoc = gl.getUniformLocation(program, "modelview");
-    gl.uniformMatrix4fv(proLoc, false, flatten(perspective(90.0, 1.0, 0.01, 100)));
-    init();
+    gl.uniformMatrix4fv(proLoc, false, flatten(perspective(fovy, 1.0, zNear, zFar)));
+    wireframe = new Wireframe();
+    origin = new Origin();
+    snake = new Snake();
     render();
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-    pointsElem = document.getElementById("points");
-});
-
-function update_points() {
-    points += 1;
-    pointsElem.innerHTML = points;
-}
-
-function init() {
+function resize(){
+    max = Math.max(cellCount.x, cellCount.y, cellCount.z);
+    gridSize = {
+        x : cellCount.x / max,
+        y : cellCount.y / max,
+        z : cellCount.z / max,
+        max: max
+    }
+    cellSize = gridSize.x / cellCount.x;
+    wireframe = new Wireframe();
     origin = new Origin();
-    grid = new Grid();
-    worldmap = new WorldMap();
-    tree = new Tree();
-    cars = new Cars();
-    turtles = new Turtles();
-    logs = new Logs();
-    frog = new Frog();
+    snake = new Snake();
 }
 
-function render() {
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    mv = lookAt(vec3(0, 0, zDist), vec3(0, 0, 1+zDist), vec3(0, 1, 0));
-    mv = mult(mv, mult(rotateX(spinX), rotateY(spinY)));
-    gl.uniformMatrix4fv(mvLoc, false, flatten(mv));
-    // Absolute Draw
-    origin.draw();
-    mv = mult(mv, translate(
-        -(frog.pos.x+0.5),
-        0,
-        -(frog.pos.z+0.5)
-    ))
-    gl.uniformMatrix4fv(mvLoc, false, flatten(mv));
-    grid.draw();
-    worldmap.draw();
-    tree.draw();
-    cars.draw(mv);
-    turtles.draw(mv);
-    logs.draw(mv);
-    frog.draw(mv);
-    requestAnimationFrame(render);
-}
-
-function frogCollide() {
-    frog = new Frog();
-    spinX = -50;
-    spinY = 0;
-}
-
+// Listeners
 document.addEventListener("DOMContentLoaded", () => {
+    // Grid Size
+    var gird_x = document.getElementById("grid_x");
+    var grid_x_text = document.getElementById("grid_x_text");
+    var grid_y = document.getElementById("grid_y");
+    var grid_y_text = document.getElementById("grid_y_text");
+    var grid_z = document.getElementById("grid_z");
+    var grid_z_text = document.getElementById("grid_z_text");
+
+    grid_x.addEventListener("change", function(e){
+        cellCount.x = e.target.value;
+        grid_x_text.innerHTML = "Grid Size x-Axis : " + cellCount.x;
+        resize();
+    });
+
+    grid_y.addEventListener("change", function(e){
+        cellCount.y = e.target.value;
+        grid_y_text.innerHTML = "Grid Size y-Axis : " + cellCount.y;
+        resize();
+    });
+
+    grid_z.addEventListener("change", function(e){
+        cellCount.z = e.target.value;
+        grid_z_text.innerHTML = "Grid Size z-Axis : " + cellCount.z;
+        resize();
+    });
+
+    // Origin
+    var origin_absolute = document.getElementById("origin_absolute");
+    var origin_relative = document.getElementById("origin_relative");
+
+    origin_absolute.addEventListener("change", function(e){
+        origin.draw_absolute = !origin.draw_absolute;
+    });
+
+    origin_relative.addEventListener("change", function(e){
+        origin.draw_relative = !origin.draw_relative;
+    });
+
+    // Projection
+    var fovy_elem = document.getElementById("fovy_elem");
+    var fovy_elem_text = document.getElementById("fovy_elem_text");
+    var zNear_elem = document.getElementById("zNear_elem");
+    var zNear_elem_text = document.getElementById("zNear_elem_text");
+    var zFar_elem = document.getElementById("zFar_elem");
+    var zFar_elem_text = document.getElementById("zFar_elem_text");
+
+    fovy_elem.addEventListener("input", function(e){
+        fovy = e.target.value;
+        gl.uniformMatrix4fv(proLoc, false, flatten(perspective(fovy, 1.0, zNear, zFar)));
+        fovy_elem_text.innerHTML = "FOV : " + fovy;
+    });
+
+    zNear_elem.addEventListener("input", function(e){
+        zNear = e.target.value/100;
+        gl.uniformMatrix4fv(proLoc, false, flatten(perspective(fovy, 1.0, zNear, zFar)));
+        zNear_elem_text.innerHTML = "zNear : " + zNear; 
+    });
+
+    zFar_elem.addEventListener("input", function(e){
+        zFar = e.target.value/100;
+        gl.uniformMatrix4fv(proLoc, false, flatten(perspective(fovy, 1.0, zNear, zFar)));
+        zFar_elem_text.innerHTML = "zFar : " + zFar;
+    });
+
+    // Snake
     canvas = document.getElementById("gl-canvas");
-    
+    var randomize_snake = document.getElementById("randomize_snake");
+    var snake_speed = document.getElementById("snake_speed");
+    var snake_speed_text = document.getElementById("snake_speed_text");
+    var initial_length = document.getElementById("initial_length");
+    var initial_length_text = document.getElementById("initial_length_text");
+    var growth_rate = document.getElementById("growth_rate");
+    var growth_rate_text = document.getElementById("growth_rate_text");
+    var distance_turn_x = document.getElementById("distance_turn_x");
+    var distance_turn_x_text = document.getElementById("distance_turn_x_text");
+    var distance_turn_y = document.getElementById("distance_turn_y");
+    var distance_turn_y_text = document.getElementById("distance_turn_y_text");
+    var distance_turn_z = document.getElementById("distance_turn_z");
+    var distance_turn_z_text = document.getElementById("distance_turn_z_text");
+
+    randomize_snake.addEventListener("click", function(e){
+        // Speed
+        snake.speed = randRangeInt(1, 5);
+        snake_speed.value = snake.speed;
+        snake_speed_text.innerHTML = "Movement Speed : 1/" + snake.speed;
+        // Initial Length
+        snake.start_length = randRangeInt(1, 100);
+        initial_length.value = snake.start_length;
+        initial_length_text.innerHTML = "Initial Length : " + snake.start_length;
+        // Growth Rate
+        snake.growth_rate = randRangeInt(1, 100);
+        growth_rate.value = snake.growth_rate;
+        growth_rate_text.innerHTML = "Grow Every : " + snake.growth_rate;
+        // Travel Distance X Y Z
+        snake.travel.x = randRangeInt(1, 25);
+        distance_turn_x.value = snake.travel.x;
+        distance_turn_x_text.innerHTML = "x-Axis : " + snake.travel.x;
+        snake.travel.y = randRangeInt(1, 25);
+        distance_turn_y.value = snake.travel.y;
+        distance_turn_y_text.innerHTML = "y-Axis : " + snake.travel.y;
+        snake.travel.z = randRangeInt(1, 25);
+        distance_turn_z.value = snake.travel.z;
+        distance_turn_z_text.innerHTML = "z-Axis : " + snake.travel.z;
+    });
+
+    snake_speed.addEventListener("input", function(e){
+        snake.speed = e.target.value;
+        snake_speed_text.innerHTML = "Movement Speed : 1/" + snake.speed;
+    });
+
+    initial_length.addEventListener("input", function(e){
+        snake.start_length = e.target.value;
+        initial_length_text.innerHTML = "Initial Length : " + snake.start_length;
+    });
+
+    growth_rate.addEventListener("input", function(e){
+        snake.growth_rate = e.target.value;
+        growth_rate_text.innerHTML = "Grow Every : " + snake.growth_rate;
+    });
+
+    distance_turn_x.addEventListener("input", function(e){
+        snake.travel.x = e.target.value;
+        distance_turn_x_text.innerHTML = "x-Axis : " + snake.travel.x;
+    });
+
+    distance_turn_y.addEventListener("input", function(e){
+        snake.travel.y = e.target.value;
+        distance_turn_y_text.innerHTML = "y-Axis : " + snake.travel.y;
+    });
+
+    distance_turn_z.addEventListener("input", function(e){
+        snake.travel.z = e.target.value;
+        distance_turn_z_text.innerHTML = "z-Axis : " + snake.travel.z;
+    });
+
+    // Control
     canvas.addEventListener("mousedown", function(e){
         movement = true;
         origX = e.offsetX;
@@ -115,6 +230,17 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    document.addEventListener("keydown", function(e){
+        switch( e.keyCode ) {
+            case 38:
+                zDist += 0.1;
+                break;
+            case 40:
+                zDist -= 0.1;
+                break;
+        }
+    });
+
     canvas.addEventListener("mousewheel", function(e){
         if( e.wheelDelta > 0.0 ) {
             zDist += 0.05;
@@ -123,40 +249,274 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    document.addEventListener("keydown", function(e){
-        switch( e.keyCode ){
-            case 37:
-                frog.move(1, 0);
+});
+
+function render() {
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    var mv = mat4();
+    mv = lookAt(vec3(0, 0, zDist), vec3(0, 0, 1+zDist), vec3(0, 1, 0));
+    mv = mult(mv, mult(rotateX(spinX), rotateY(spinY)));
+    mv = mult(mv, translate(-gridSize.x/2, -gridSize.y/2, -gridSize.z/2));
+    gl.uniformMatrix4fv(mvLoc, false, flatten(mv));
+    // Absolute Draw
+    wireframe.draw();
+    if(origin.draw_absolute) { origin.draw(); }
+    snake.draw(mv);
+    if(!snake.alive) {
+        snake.alive_timeout += 1;
+        if(snake.alive_timeout == 180) {
+            snake = new Snake();
+        }
+    }
+    // Relative Draw
+    mv = mult(mv, translate(gridSize.x/2, gridSize.y/2, gridSize.z/2));
+    gl.uniformMatrix4fv(mvLoc, false, flatten(mv));
+    if(origin.draw_relative) { origin.draw(); }
+    spinY += 0.2;
+    //
+    requestAnimationFrame(render);
+}
+
+class Snake {
+    constructor() {
+        this.body = [];
+        this.alive = true;
+        this.speed = snake_speed.value;
+        this.alive_timeout = 0;
+        this.speed_counter = 0;
+        this.travel_counter = 0;
+        this.travel = {
+            x : distance_turn_x.value,
+            y : distance_turn_y.value,
+            z : distance_turn_z.value
+        };
+        this.growth_rate = growth_rate.value;
+        this.growth_counter = 0;
+        this.start_length = initial_length.value;
+        for(var i = 0; i < this.start_length; i++) {
+            this.body.push({
+                x : (cellCount.x/2) >> 0,
+                y : (cellCount.y/2) >> 0,
+                z : (cellCount.z/2) >> 0
+            })
+        };
+        this.direction = {
+            x : 1,
+            y : 0,
+            z : 0
+        };
+        this.directions = [
+            { x : -1, y :  0, z :  0 },
+            { x :  1, y :  0, z :  0 },
+            { x :  0, y : -1, z :  0 },
+            { x :  0, y :  1, z :  0 },
+            { x :  0, y :  0, z : -1 },
+            { x :  0, y :  0, z :  1 }
+        ];
+        this.colors = [
+            vec4(1.0, 0.3, 0.3, 1.0),
+            vec4(0.2, 0.4, 1.0, 1.0),
+            vec4(0.2, 0.7, 0.2, 1.0)
+        ];
+        this.buffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(cubeTriangles(cellSize, cellSize, cellSize)), gl.STATIC_DRAW);
+    }
+
+    draw(mv) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+        gl.vertexAttribPointer(gl.vPosition, 3, gl.FLOAT, false, 0, 0);
+        for(var i = 0; i < this.body.length; i++) {
+            if(this.alive) {
+                switch (true) {
+                    case i == 0:
+                        gl.uniform4fv(colorLoc, this.colors[0]);
+                        break;
+                    case i % 2 == 0:
+                        gl.uniform4fv(colorLoc, this.colors[1]);
+                        break;
+                    default:
+                        gl.uniform4fv(colorLoc, this.colors[2]);
+                        break;
+                }
+            } else {
+                gl.uniform4fv(colorLoc, vec4(1.0, 0.0, 0.0, 1.0));
+            }
+            gl.uniformMatrix4fv(mvLoc, false, flatten(mult(mv, translate(
+                cellSize * this.body[i].x,
+                cellSize * this.body[i].y,
+                cellSize * this.body[i].z
+            )))); 
+            gl.drawArrays(gl.TRIANGLES, 0, 36);
+        }
+        this.speed_counter++;
+        if(this.speed_counter % this.speed == 0) {
+            this.speed_counter = 0;
+            this.move();
+        }
+    }
+
+    move() {
+        if(!this.alive) {
+            return;
+        }
+        var rng = Math.random();
+        this.travel_counter++;
+        switch (true) {
+            case this.direction.x != 0:
+                if(this.travel_counter % this.travel.x == 0) {
+                    switch (true) {
+                        case rng < 0.2:
+                            this.direction = this.directions[2];
+                            break;
+                        case rng < 0.4:
+                            this.direction = this.directions[3];
+                            break;
+                        case rng < 0.6:
+                            this.direction = this.directions[4];
+                            break;
+                        case rng < 0.8:
+                            this.direction = this.directions[5];
+                            break;
+                    }
+                    this.travel_counter = 0;
+                }
                 break;
-            case 38:
-                frog.move(0, 1);
+            case this.direction.y != 0:
+                if(this.travel_counter % this.travel.y == 0) {
+                    switch (true) {
+                        case rng < 0.2:
+                            this.direction = this.directions[0];
+                            break;
+                        case rng < 0.4:
+                            this.direction = this.directions[1];
+                            break;
+                        case rng < 0.6:
+                            this.direction = this.directions[4];
+                            break;
+                        case rng < 0.8:
+                            this.direction = this.directions[5];
+                            break;
+                    }
+                    this.travel_counter = 0;
+                }
                 break;
-            case 39:
-                frog.move(-1, 0);
-                break;
-            case 40:
-                frog.move(0, -1);
-                break;
-            case 79:
-                grid.enable_draw = !grid.enable_draw;
-                break;
-            case 80:
-                origin.enable_draw = !origin.enable_draw;
+            case this.direction.z != 0:
+                if(this.travel_counter % this.travel.z == 0) {
+                    switch (true) {
+                        case rng < 0.2:
+                            this.direction = this.directions[0];
+                            break;
+                        case rng < 0.4:
+                            this.direction = this.directions[1];
+                            break;
+                        case rng < 0.6:
+                            this.direction = this.directions[2];
+                            break;
+                        case rng < 0.8:
+                            this.direction = this.directions[3];
+                            break;
+                    }
+                    this.travel_counter = 0;
+                }
                 break;
         }
-    });
-});
+        var part = this.body.pop();
+        this.growth_counter++;
+        if(this.growth_counter % this.growth_rate == 0) {
+            this.body.push({x : part.x, y : part.y, z : part.z});
+        }
+        part.x = (this.body[0].x + this.direction.x) % cellCount.x;
+        part.y = (this.body[0].y + this.direction.y) % cellCount.y;
+        part.z = (this.body[0].z + this.direction.z) % cellCount.z;
+        switch (true) {
+            case part.x < 0:
+                part.x = cellCount.x-1;
+                break;
+            case part.y < 0:
+                part.y = cellCount.y-1;
+                break;
+            case part.z < 0:
+                part.z = cellCount.z-1;
+                break;
+        }
+        this.body.unshift(part);
+        for(var i = 1; i < this.body.length; i++){
+            if(
+                this.body[0].x == this.body[i].x && 
+                this.body[0].y == this.body[i].y && 
+                this.body[0].z == this.body[i].z
+            ) {
+                this.alive = false;
+                break;
+            }
+        }
+    }
+}
+
+function randRangeInt(min, max) {
+    return ((Math.random() * (max+1 - min)) + min) >> 0;
+}
+
+class Wireframe {
+    constructor() {
+        this.buffer = gl.createBuffer();
+        this.color = vec4(1.0, 1.0, 1.0, 1.0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(cubeLines(gridSize.x, gridSize.y, gridSize.z)), gl.STATIC_DRAW);
+    }
+    
+    draw() {
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+        gl.uniform4fv(colorLoc, this.color);
+        gl.vertexAttribPointer(gl.vPosition, 3, gl.FLOAT, false, 0, 0);
+        gl.drawArrays(gl.LINES, 0, 24);
+    }
+}
+
+class Origin {
+    constructor() {
+        this.draw_relative = false;
+        this.draw_absolute = false;
+        this.color_x = vec4(1.0, 0.0, 0.0, 1.0);
+        this.color_y = vec4(0.0, 1.0, 0.0, 1.0);
+        this.color_z = vec4(0.0, 0.0, 1.0, 1.0);
+        this.buffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(originLines(gridSize.x, gridSize.y, gridSize.z)), gl.STATIC_DRAW);
+    }
+
+    draw() {
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+        gl.vertexAttribPointer(gl.vPosition, 3, gl.FLOAT, false, 0, 0);
+        gl.uniform4fv(colorLoc, this.color_x);
+        gl.drawArrays(gl.LINES, 0, 2);
+        gl.uniform4fv(colorLoc, this.color_y);
+        gl.drawArrays(gl.LINES, 2, 3);
+        gl.uniform4fv(colorLoc, this.color_z);
+        gl.drawArrays(gl.LINES, 4, 5);
+    }
+}
 
 function cubeVertices(x, y, z) {
     return [
-        vec3(x, y, z),
-        vec3(x, y, 0),
-        vec3(x, 0, z),
-        vec3(x, 0, 0),
-        vec3(0, y, z),
-        vec3(0, y, 0),
-        vec3(0, 0, z),
-        vec3(0, 0, 0)
+        vec3( x, y, z),
+        vec3( x, y, 0),
+        vec3( x, 0, z),
+        vec3( x, 0, 0),
+        vec3( 0, y, z),
+        vec3( 0, y, 0),
+        vec3( 0, 0, z),
+        vec3( 0, 0, 0)
+    ];
+}
+
+function cubeLines(x, y, z) {
+    a = cubeVertices(x, y, z);
+    return [
+        a[6], a[4], a[4], a[0], a[0], a[2], a[2], a[6],
+        a[7], a[5], a[5], a[1], a[1], a[3], a[3], a[7],
+        a[6], a[7], a[4], a[5], a[0], a[1], a[2], a[3]
     ];
 }
 
@@ -172,541 +532,10 @@ function cubeTriangles(x, y, z) {
     ];
 }
 
-class DrawableObject {
-    constructor(color, vertices, draw_mode) {
-        this.color = color;
-        this.vertices = vertices
-        this.draw_mode = draw_mode
-        this.buffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-        gl.bufferData(gl.ARRAY_BUFFER, flatten(this.vertices), gl.STATIC_DRAW);
-    }
-
-    load() {
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-        gl.vertexAttribPointer(gl.vPosition, 3, gl.FLOAT, false, 0, 0);
-    }
-
-    draw() {
-        this.load();
-        gl.uniform4fv(colorLoc, this.color);
-        gl.drawArrays(this.draw_mode, 0, this.vertices.length);
-    }
-}
-
-class Origin extends DrawableObject {
-    constructor() {
-        super(
-            [
-                vec4(1.0, 0.0, 0.0, 1.0),
-                vec4(0.0, 1.0, 0.0, 1.0),
-                vec4(0.0, 0.0, 1.0, 1.0)
-            ],
-            [
-                vec3(-10.0, 0, 0), vec3(10.0, 0, 0),
-                vec3(0, -10.0, 0), vec3(0, 10.0, 0),
-                vec3(0, 0, -10.0), vec3(0, 0, 10.0)
-            ],
-            gl.LINES
-        );
-        this.enabble_draw = false;
-    }
-
-    draw() {
-        if(!this.enable_draw){return;}
-        this.load();
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-        gl.vertexAttribPointer(gl.vPosition, 3, gl.FLOAT, false, 0, 0);
-        gl.uniform4fv(colorLoc, this.color[0]);
-        gl.drawArrays(this.draw_mode, 0, 2);
-        gl.uniform4fv(colorLoc, this.color[1]);
-        gl.drawArrays(this.draw_mode, 2, 3);
-        gl.uniform4fv(colorLoc, this.color[2]);
-        gl.drawArrays(this.draw_mode, 4, 5);
-    }
-}
-
-class Grid extends DrawableObject {
-    constructor() {
-        super(vec4(1.0, 1.0, 1.0, 1.0), Grid.createVertices(), gl.LINES);
-        this.enabble_draw = false;
-    }
-
-    draw() {
-        if(!this.enable_draw){return;}
-        this.load();
-        gl.uniform4fv(colorLoc, this.color);
-        for(var i = 0; i < this.vertices.length; i+=6) {
-            gl.drawArrays(this.draw_mode, i, i+6);
-        }
-    }
-
-    static createVertices() {
-        var vert_x = [];
-        var vert_z = [];
-        for(var i = 0; i <= grid_size; i++) {
-            vert_x.push(vec3(i, 0.0, 0));
-            vert_x.push(vec3(i, 0.0, grid_size));
-            vert_z.push(vec3(0, 0.0, i));
-            vert_z.push(vec3(grid_size, 0.0, i));
-        }
-        return vert_x.concat(vert_z);
-    }
-}
-
-class WorldMap extends DrawableObject {
-    constructor() {
-        super(
-            [
-                vec4(0.2, 0.2, 0.7, 1.0),
-                vec4(0.1, 0.1, 0.1, 1.0),
-                vec4(0.4, 0.4, 0.8, 1.0)
-            ],
-            [
-                vec3(grid_size, -0.2, 1), vec3(0        , -0.2,  1), vec3(0        , -0.2,  6),
-                vec3(0        , -0.2, 6), vec3(grid_size, -0.2,  1), vec3(grid_size, -0.2,  6),
-                vec3(grid_size,  0  , 0), vec3(grid_size, -0.2,  0), vec3(0        ,  0  ,  0),
-                vec3(0        ,  0  , 0), vec3(grid_size, -0.2,  0), vec3(0        , -0.2,  0),
-                vec3(0        ,  0  , 0), vec3(0        ,  0  ,  1), vec3(grid_size,  0  ,  1),
-                vec3(0        ,  0  , 0), vec3(grid_size,  0  ,  0), vec3(grid_size,  0  ,  1),
-                vec3(grid_size,  0  , 1), vec3(grid_size, -0.2,  1), vec3(0        ,  0  ,  1),
-                vec3(0        ,  0  , 1), vec3(grid_size, -0.2,  1), vec3(0        , -0.2,  1),
-                vec3(0        ,  0  , 0), vec3(0        , -0.2,  1), vec3(0        ,  0  ,  1),
-                vec3(0        ,  0  , 0), vec3(0        , -0.2,  0), vec3(0        , -0.2,  1),
-                vec3(grid_size,  0  , 0), vec3(grid_size, -0.2,  1), vec3(grid_size,  0  ,  1),
-                vec3(grid_size,  0  , 0), vec3(grid_size, -0.2,  0), vec3(grid_size, -0.2,  1),
-                vec3(0        , -0.2, 6), vec3(grid_size, -0.2,  6), vec3(0        ,  0  ,  6),
-                vec3(grid_size, -0.2, 6), vec3(grid_size,  0  ,  6), vec3(0        ,  0  ,  6),
-                vec3(0        ,  0  , 6), vec3(0        ,  0  ,  7), vec3(grid_size,  0  ,  6),
-                vec3(0        ,  0  , 7), vec3(grid_size,  0  ,  7), vec3(grid_size,  0  ,  6),
-                vec3(grid_size,  0  , 7), vec3(grid_size, -0.2,  7), vec3(0        ,  0  ,  7),
-                vec3(0        ,  0  , 7), vec3(grid_size, -0.2,  7), vec3(0        , -0.2,  7),
-                vec3(0        ,  0  , 6), vec3(0        , -0.2,  7), vec3(0        ,  0  ,  7),
-                vec3(0        ,  0  , 6), vec3(0        , -0.2,  6), vec3(0        , -0.2,  7),
-                vec3(grid_size,  0  , 6), vec3(grid_size, -0.2,  7), vec3(grid_size,  0  ,  7),
-                vec3(grid_size,  0  , 6), vec3(grid_size, -0.2,  6), vec3(grid_size, -0.2,  7),
-                vec3(0        , -0.2, 12), vec3(grid_size, -0.2,  12), vec3(0        ,  0  ,  12),
-                vec3(grid_size, -0.2, 12), vec3(grid_size,  0  ,  12), vec3(0        ,  0  ,  12),
-                vec3(0        ,  0  , 12), vec3(0        ,  0  ,  13), vec3(grid_size,  0  ,  12),
-                vec3(0        ,  0  , 13), vec3(grid_size,  0  ,  13), vec3(grid_size,  0  ,  12),
-                vec3(grid_size,  0  , 13), vec3(grid_size, -0.2,  13), vec3(0        ,  0  ,  13),
-                vec3(0        ,  0  , 13), vec3(grid_size, -0.2,  13), vec3(0        , -0.2,  13),
-                vec3(0        ,  0  , 12), vec3(0        , -0.2,  13), vec3(0        ,  0  ,  13),
-                vec3(0        ,  0  , 12), vec3(0        , -0.2,  12), vec3(0        , -0.2,  13),
-                vec3(grid_size,  0  , 12), vec3(grid_size, -0.2,  13), vec3(grid_size,  0  ,  13),
-                vec3(grid_size,  0  , 12), vec3(grid_size, -0.2,  12), vec3(grid_size, -0.2,  13),
-                vec3(grid_size, -0.2, 7), vec3(grid_size, -0.2, 12), vec3(0        , -0.2, 12), 
-                vec3(grid_size, -0.2, 7), vec3(0        , -0.2,  7), vec3(0        , -0.2, 12),
-                
-            ],
-            gl.TRIANGLES
-        );
-    }
-
-    draw() {
-        this.load();
-        gl.uniform4fv(colorLoc, this.color[1]);
-        gl.drawArrays(this.draw_mode, 0, 6);
-        gl.uniform4fv(colorLoc, this.color[0]);
-        gl.drawArrays(this.draw_mode, 6, 90);
-        gl.uniform4fv(colorLoc, this.color[2]);
-        gl.drawArrays(this.draw_mode, 90, this.vertices.length);
-    }
-}
-
-class Tree extends DrawableObject {
-    constructor(size=0.3) {
-        super(vec4(0.2, 0.5, 0.2, 1.0), cubeTriangles(size, size/2, size), gl.TRIANGLES);
-        this.size = size;
-        this.pos = {
-            x : 0,
-            z : 0
-        }
-    }
-
-    draw() {
-        for(var i = 0; i < grid_size; i+=2){
-            tree.copy(i, 6);
-        }
-    }
-    
-    copy(x, z) {
-        this.load();
-        this.pos.x = x;
-        this.pos.z = z;
-        gl.uniformMatrix4fv(mvLoc, false, flatten(mult(mv, translate(
-            tree.pos.x + (1-tree.size)/2,
-            0,
-            tree.pos.z + (1-tree.size)/2
-        ))));
-        gl.uniform4fv(colorLoc, this.color);
-        gl.drawArrays(this.draw_mode, 0, this.vertices.length);
-    }
-}
-
-class Car extends DrawableObject {
-    constructor(color, pos, speed, size=0.6) {
-        super(color, cubeTriangles(size, size, size), gl.TRIANGLES);
-        this.size = size;
-        this.pos = pos;
-        this.speed = speed;
-    }
-
-    draw(mv) {
-        this.load();
-        gl.uniformMatrix4fv(mvLoc, false, flatten(mult(mv, translate(
-            this.pos.x + (1-this.size)/2,
-            -0.2,
-            this.pos.z + (1-this.size)/2
-        ))));
-        gl.uniform4fv(colorLoc, this.color);
-        gl.drawArrays(this.draw_mode, 0, this.vertices.length);
-        this.move();
-    }
-
-    move() {
-        this.pos.x += this.speed;
-        if(this.speed > 0 && this.pos.x > grid_size) {
-            this.pos.x = -1;
-        } else
-        if (this.speed < 0 && this.pos.x < -1) {
-            this.pos.x = grid_size;
-        }
-    }
-}
-
-class Cars {
-    constructor() {
-        this.cars = Cars.create_cars();
-    }
-
-    draw(mv) {
-        for(var i = 0; i < this.cars.length; i++) {
-            for(var j = 0; j < this.cars[i].length; j++) {
-                this.cars[i][j].draw(mv);
-            }
-        }
-        if(frog.pos.z > 0 && frog.pos.z < 6) {
-            for(var car of this.cars[frog.pos.z-1]) {
-                if(
-                    frog.pos.x +     (1-frog.size)/2 < car.pos.x + 1 - (1-car.size)/2 &&
-                    frog.pos.x +     (1-frog.size)/2 > car.pos.x +     (1-car.size)/2 || 
-                    frog.pos.x + 1 - (1-frog.size)/2 < car.pos.x + 1 - (1-car.size)/2 &&
-                    frog.pos.x + 1 - (1-frog.size)/2 > car.pos.x +     (1-car.size)/2
-                ) {
-                    frogCollide();
-                }
-            }
-        }
-    }
-
-    static create_cars() {
-        var cars = [];
-        for(var i = 0; i < 5; i++) {
-            var lane_count = randRangeInt(1, 3);
-            var lane_speed = 0.1/randRangeInt(2, 3);
-            if(i % 2 == 0) {lane_speed = -lane_speed;}
-            var spacing = randRangeInt(2, 3);
-            var lane_color = vec4(
-                randRangeInt(50, 100)/100,
-                randRangeInt(50, 100)/100,
-                randRangeInt(50, 100)/100,
-                1.0
-            );
-            cars.push([]);
-            for(var j = 1; j < lane_count+1; j++) {
-                cars[i].push(new Car(
-                    lane_color,
-                    {z : i+1, x : randRangeInt(1, 4)+j*spacing}, 
-                    lane_speed
-                ));
-            }
-        }
-        return cars;
-    }
-}
-
-class Turtle extends DrawableObject {
-    constructor(color, pos, speed, size=0.8) {
-        super(color, cubeTriangles(size, size/8, size), gl.TRIANGLES);
-        this.size = size;
-        this.pos = pos;
-        this.speed = speed;
-        this.diving = false;
-        this.dive_depth = 0;
-    }
-
-    draw(mv) {
-        this.load();
-        if(this.diving && this.dive_depth < 0.3) {
-            this.dive_depth += 0.001;
-        }
-        if(!this.diving && this.dive_depth >= 0) {
-            this.dive_depth = 0;
-        }
-        gl.uniformMatrix4fv(mvLoc, false, flatten(mult(mv, translate(
-            this.pos.x + (1-this.size)/2,
-            -0.2-this.dive_depth,
-            this.pos.z + (1-this.size)/2
-        ))));
-        if(this.diving) {
-            gl.uniform4fv(colorLoc, vec4(0.7, 0.4, 0.4, 1.0));
-        } else {
-            gl.uniform4fv(colorLoc, this.color);
-        }
-        gl.drawArrays(this.draw_mode, 0, this.vertices.length);
-        this.move();
-    }
-
-    move() {
-        this.pos.x += this.speed;
-        if(this.speed > 0 && this.pos.x > grid_size) {
-            this.pos.x = -1;
-        } else 
-        if(this.speed < 0 && this.pos.x < -1) {
-            this.pos.x = grid_size;
-        }
-    }
-}
-
-class Turtles {
-    constructor() {
-        this.turtles = Turtles.create_turtles();
-    }
-    
-    draw(mv) {
-        for(var i = 0; i < this.turtles.length; i++) {
-            for(var j = 0; j < this.turtles[i].length; j++) {
-                this.turtles[i][j].draw(mv);
-                if(!this.turtles[i][j].diving && this.turtles[i][j].dive_depth == 0 && Math.random() < 0.001) {
-                    this.turtles[i][j].diving = true;
-                }
-                if(this.turtles[i][j].diving && this.turtles[i][j].dive_depth >= 0.2) {
-                    this.turtles[i][j].diving = false;
-                }
-            }
-        }
-        if(frog.pos.z == 7 || frog.pos.z == 10) {
-            var index;
-            if(frog.pos.z == 7) {index = 0;} else {index = 1;}
-            if(!frog.on_item) {
-                for(var turtle of this.turtles[index]) {
-                    if(
-                        (
-                            frog.pos.x +     (1-frog.size)/2 < turtle.pos.x + 1 - (1-turtle.size)/2 &&
-                            frog.pos.x +     (1-frog.size)/2 > turtle.pos.x +     (1-turtle.size)/2 || 
-                            frog.pos.x + 1 - (1-frog.size)/2 < turtle.pos.x + 1 - (1-turtle.size)/2 &&
-                            frog.pos.x + 1 - (1-frog.size)/2 > turtle.pos.x +     (1-turtle.size)/2
-                        )
-                        && !turtle.diving
-                    ) {
-                        frog.on_item = true;
-                        frog.speed = turtle.speed;
-                        return;
-                    }
-                }
-                frogCollide();
-            }
-        }
-    }
-    
-    static create_turtles() {
-        var turtles = [[], []];
-        var color = vec4(0.4, 0.7, 0.4, 1.0);
-        var offset = 0;
-        for(var i = 0; i < grid_size; i++) {
-            if(i % 4 == 0) {
-                offset ++;
-            } else {
-                turtles[0].push(new Turtle(
-                    color,
-                    {x : i+offset, z : 7},
-                    0.05
-                ));
-            }
-        }
-        for(var i = 0; i < grid_size; i++) {
-            turtles[1].push(new Turtle(
-                color,
-                {x : i, z : 10},
-                0.03
-            ))
-            turtles[1].push(new Turtle(
-                color,
-                {x : i+1, z : 10},
-                0.03
-            ))
-            i += 4;
-        }
-        return turtles;
-    }
-}
-
-class Log extends DrawableObject {
-    constructor(pos, speed, size=0.8, length=randRangeInt(2, 4)) {
-        super(vec4(0.545, 0.270, 0.074, 1.0), cubeTriangles(length-(1-size)/2, size/4, size), gl.TRIANGLES);
-        this.size = size;
-        this.length = length; 
-        this.pos = pos;
-        this.speed = speed;
-    }
-
-    draw(mv) {
-        this.load();
-        gl.uniformMatrix4fv(mvLoc, false, flatten(mult(mv, translate(
-            this.pos.x + (1-this.size)/2,
-            -0.2,
-            this.pos.z + (1-this.size)/2
-        ))));
-        gl.uniform4fv(colorLoc, this.color);
-        gl.drawArrays(this.draw_mode, 0, this.vertices.length);
-        this.move();
-    }
-
-    move() {
-        this.pos.x += this.speed;
-        if(this.speed > 0 && this.pos.x > grid_size) {
-            this.pos.x = -this.length;
-        } else
-        if(this.speed < 0 && this.pos.x < -this.length) {
-            this.pos.x = grid_size;
-        }
-    }
-}
-
-class Logs {
-    constructor() {
-        this.logs = Logs.create_logs();
-    }
-
-    draw(mv) {
-        for(var i = 0; i < this.logs.length; i++) {
-            for(var j = 0; j < this.logs[i].length; j++) {
-                this.logs[i][j].draw(mv);
-            }
-        }
-        if(frog.pos.z == 8 || frog.pos.z == 9 || frog.pos.z == 11) {
-            var index;
-            if(frog.pos.z == 8) {index = 0;} else if(frog.pos.z == 9) {index = 1;} else {index = 2;}
-            if(!frog.on_item) {
-                for(var log of this.logs[index]) {
-                    if (
-                        frog.pos.x +     (1-frog.size)/2 < log.pos.x + log.length - (1-log.size)/2 &&
-                        frog.pos.x +     (1-frog.size)/2 > log.pos.x +     (1-log.size)/2 || 
-                        frog.pos.x + 1 - (1-frog.size)/2 < log.pos.x + log.length - (1-log.size)/2 &&
-                        frog.pos.x + 1 - (1-frog.size)/2 > log.pos.x +     (1-log.size)/2
-                    ) {
-                        frog.on_item = true;
-                        frog.speed = log.speed;
-                        return;
-                    }
-                }
-                frogCollide();
-            }
-        }
-    }
-
-    static create_logs() {
-        var logs = [[], [], []];
-        var speed = randRangeInt(2, 3);
-        for(var i = 0; i < grid_size; i++) {
-            logs[0].push(new Log(
-                {x : i, z : 8},
-                -0.1/speed,
-                0.8,
-                2
-            ));
-            i+=4;
-        }
-        speed = randRangeInt(5, 10);
-        for(var i = 0; i < grid_size; i++) {
-            logs[1].push(new Log(
-                {x : i, z : 9},
-                -0.1/speed,
-                0.8,
-                4
-            ));
-            i+=8;
-        }
-        speed = randRangeInt(3, 5);
-        for(var i = 0; i < grid_size; i++) {
-            logs[2].push(new Log(
-                {x : i, z : 11},
-                -0.1/speed,
-                0.8,
-                3
-            ));
-            i+=5
-        }
-        return logs;
-    }
-}
-
-class Frog extends DrawableObject {
-    constructor(size=0.5) {
-        super(vec4(0.2, 0.5, 0.2, 1.0), cubeTriangles(size, size/2, size), gl.TRIANGLES);
-        this.size = size;
-        this.pos = {
-            x : 6,
-            z : 0
-        }
-        this.on_item = false;
-        this.speed = 0;
-    }
-
-    draw(mv) {
-        this.load();
-        if(this.on_item) {
-            this.pos.x += this.speed;
-            this.on_item = false;
-        }
-        if(this.pos.z > 11) {
-            update_points();
-            frogCollide();
-        }
-        if(this.pos.z < 0) {
-            this.pos.z = 0;
-        } else if(this.pos.z > grid_size-1) {
-            this.pos.z = grid_size-1;
-        }
-        if(this.pos.x < 0) {
-            this.pos.x = 0;
-        } else if(this.pos.x > grid_size-1) {
-            this.pos.x = grid_size-1;
-        }
-        if(frog.pos.z > 0 && frog.pos.z < 6) {
-            gl.uniformMatrix4fv(mvLoc, false, flatten(mult(mv, translate(
-                frog.pos.x + (1-frog.size)/2,
-                -0.2,
-                frog.pos.z + (1-frog.size)/2
-            ))));
-        } else 
-        if(frog.pos.z == 7 || frog.pos.z == 10) {
-            gl.uniformMatrix4fv(mvLoc, false, flatten(mult(mv, translate(
-                frog.pos.x + (1-frog.size)/2,
-                -0.1,
-                frog.pos.z + (1-frog.size)/2
-            ))));
-        } else {
-            gl.uniformMatrix4fv(mvLoc, false, flatten(mult(mv, translate(
-                frog.pos.x + (1-frog.size)/2,
-                0,
-                frog.pos.z + (1-frog.size)/2
-            ))));
-        }
-        gl.uniform4fv(colorLoc, this.color);
-        gl.drawArrays(this.draw_mode, 0, this.vertices.length);
-    }
-
-    move(x, z) {
-        if(this.pos.x + x <= grid_size-1 && this.pos.x + x >= 0 && this.pos.z + z <= grid_size-1 && this.pos.z + z >= 0) {
-            frog.on_item = false;
-            this.pos.x += x;
-            this.pos.z += z;
-        }
-    }
-}
-
-function randRangeInt(min, max) {
-    return ((Math.random() * (max+1 - min)) + min) >> 0;
+function originLines(x, y, z) {
+    return [
+        vec3(-10.0, 0, 0), vec3(10.0, 0, 0),
+        vec3(0, -10.0, 0), vec3(0, 10.0, 0),
+        vec3(0, 0, -10.0), vec3(0, 0, 10.0)
+    ];
 }
